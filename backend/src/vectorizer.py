@@ -8,7 +8,9 @@ from config import *
 from langchain_text_splitters import CharacterTextSplitter
 from datetime import datetime, timezone
 
-logging.basicConfig(filename="/app/data/log/vectorizer.log", level=logging.INFO, format='%(asctime)s - %(message)s')
+log_filedir = "/app/data/log/"
+os.makedirs(log_filedir, exist_ok=True)
+logging.basicConfig(filename=os.path.join(log_filedir, "vectorizer.log"), level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
 logger.info("Initializing vectorizer to read from local PDF folder")
 

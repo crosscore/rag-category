@@ -5,7 +5,7 @@ import psycopg
 from psycopg.rows import dict_row
 import re
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
 
 def get_db_connection():
@@ -101,7 +101,7 @@ def get_table_summary(cursor):
     return summary
 
 def print_table_summary(summary):
-    logger.info("------ Table Summary ------")
+    logger.info("\n------ Table Summary ------")
     for table_name, record_count in summary:
         logger.info(f"Table: {table_name}, Records: {record_count}")
 
@@ -120,7 +120,7 @@ def main():
             logger.info(f"Found {len(tables)} tables in the database.")
 
         for table_name in tables:
-            logger.info(f"\n===== Table: {table_name} =====")
+            logger.info(f"\n######### Table: {table_name} #########")
 
             table_structure = get_table_structure(cursor, table_name)
             logger.info("------ Table Structure ------")

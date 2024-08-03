@@ -55,31 +55,43 @@ def create_table_and_index(cursor, table_name):
         business_category TEXT
     );
     """).format(sql.Identifier(sanitized_table_name))
-    cursor.execute(create_table_query)
-    logger.info(f"Table {sanitized_table_name} created successfully")
 
-    if INDEX_TYPE == "hnsw":
-        create_index_query = sql.SQL("""
-        CREATE INDEX IF NOT EXISTS hnsw_{}_chunk_vector_idx ON {}
-        USING hnsw ((chunk_vector::halfvec(3072)) halfvec_ip_ops)
-        WITH (m = {}, ef_construction = {});
-        """).format(sql.Identifier(sanitized_table_name), sql.Identifier(sanitized_table_name),
-                    sql.Literal(HNSW_M), sql.Literal(HNSW_EF_CONSTRUCTION))
-        cursor.execute(create_index_query)
-        logger.info(f"HNSW index created successfully for {sanitized_table_name} with parameters: m = {HNSW_M}, ef_construction = {HNSW_EF_CONSTRUCTION}")
-    elif INDEX_TYPE == "ivfflat":
-        create_index_query = sql.SQL("""
-        CREATE INDEX IF NOT EXISTS ivfflat_{}_chunk_vector_idx ON {}
-        USING ivfflat ((chunk_vector::halfvec(3072)) halfvec_ip_ops)
-        WITH (lists = {});
-        """).format(sql.Identifier(sanitized_table_name), sql.Identifier(sanitized_table_name),
-                    sql.Literal(IVFFLAT_LISTS))
-        cursor.execute(create_index_query)
-        logger.info(f"IVFFlat index created successfully for {sanitized_table_name} with parameter: lists = {IVFFLAT_LISTS}")
-    elif INDEX_TYPE == "none":
-        logger.info(f"No index created for {sanitized_table_name} as per configuration")
-    else:
-        raise ValueError(f"Unsupported index type: {INDEX_TYPE}")
+    try:
+        cursor.execute(create_table_query)
+        logger.info(f"Table {sanitized_table_name} created successfully")
+
+        if INDEX_TYPE == "hnsw":
+            create_index_query = sql.SQL("""
+            CREATE INDEX IF NOT EXISTS {} ON {}
+            USING hnsw ((chunk_vector::halfvec(3072)) halfvec_ip_ops)
+            WITH (m = {}, ef_construction = {});
+            """).format(
+                sql.Identifier(f"hnsw_{sanitized_table_name}_chunk_vector_idx"),
+                sql.Identifier(sanitized_table_name),
+                sql.Literal(HNSW_M),
+                sql.Literal(HNSW_EF_CONSTRUCTION)
+            )
+            cursor.execute(create_index_query)
+            logger.info(f"HNSW index created successfully for {sanitized_table_name} with parameters: m = {HNSW_M}, ef_construction = {HNSW_EF_CONSTRUCTION}")
+        elif INDEX_TYPE == "ivfflat":
+            create_index_query = sql.SQL("""
+            CREATE INDEX IF NOT EXISTS {} ON {}
+            USING ivfflat ((chunk_vector::halfvec(3072)) halfvec_ip_ops)
+            WITH (lists = {});
+            """).format(
+                sql.Identifier(f"ivfflat_{sanitized_table_name}_chunk_vector_idx"),
+                sql.Identifier(sanitized_table_name),
+                sql.Literal(IVFFLAT_LISTS)
+            )
+            cursor.execute(create_index_query)
+            logger.info(f"IVFFlat index created successfully for {sanitized_table_name} with parameter: lists = {IVFFLAT_LISTS}")
+        elif INDEX_TYPE == "none":
+            logger.info(f"No index created for {sanitized_table_name} as per configuration")
+        else:
+            raise ValueError(f"Unsupported index type: {INDEX_TYPE}")
+    except psycopg.Error as e:
+        logger.error(f"Error creating table or index for {sanitized_table_name}: {e}")
+        raise
 
 def process_csv_file(file_path, cursor, table_name):
     logger.info(f"Processing CSV file: {file_path}")
