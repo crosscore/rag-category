@@ -29,12 +29,10 @@ async def read_root(request: Request):
 
 @app.get("/pdf/{path:path}")
 async def stream_pdf(path: str, page: int = None):
-    # Remove any leading slashes and "app/data/pdf/" from the path
     clean_path = path.lstrip('/').replace('app/data/pdf/', '', 1)
     url = f"{BACKEND_HTTP_URL}/pdf/{clean_path}"
     if page is not None:
         url += f"?page={page}"
-
     logger.info(f"Proxying PDF from backend: {url}")
 
     async def stream_response():

@@ -76,7 +76,7 @@ async def websocket_endpoint(websocket: WebSocket):
         while True:
             data = await websocket.receive_json()
             question = data["question"]
-            top_n = int(data.get("top_n", 20))
+            top_n = int(data.get("top_n", 30))
 
             question_vector = client.embeddings.create(
                 input=question,
