@@ -72,6 +72,7 @@ async def get_pdf(path: str, page: int = None):
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
+    logger.info("WebSocket connection established")
     try:
         while True:
             data = await websocket.receive_json()
@@ -107,6 +108,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     "results": formatted_results
                 }
                 await websocket.send_json(response_data)
+                logger.info(f"Sent response for question: {question[:50]}...")
             except Exception as e:
                 logger.error(f"Error processing query: {str(e)}")
                 logger.exception("Full traceback:")
@@ -115,7 +117,7 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected")
     except Exception as e:
-        logger.error(f"Unexpected error: {str(e)}")
+        logger.error(f"Unexpected error in WebSocket connection: {str(e)}")
         logger.exception("Full traceback:")
 
 @app.get("/")
@@ -125,4 +127,4 @@ async def root():
 if __name__ == "__main__":
     import uvicorn
     logger.info("Starting the application")
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    uvicorn.run(app, host="0.0.0.0", port=8001, log_level="info")
