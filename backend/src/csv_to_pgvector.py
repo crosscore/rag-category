@@ -101,7 +101,7 @@ def process_csv_file(file_path, cursor, table_name):
     insert_query = sql.SQL("""
     INSERT INTO {}
     (file_name, business_category, document_page, chunk_no, chunk_text, model, prompt_tokens, total_tokens, created_date_time, chunk_vector)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s::vector(3072), %s);
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::vector(3072));
     """).format(sql.Identifier(sanitized_table_name))
 
     data = []
