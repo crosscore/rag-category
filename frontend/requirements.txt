@@ -1,4 +1,4 @@
-# pgvector-ann/frontend/requirements.txt
+# rag-category/frontend/requirements.txt
 fastapi
 uvicorn
 jinja2
