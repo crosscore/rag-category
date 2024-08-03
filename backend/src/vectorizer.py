@@ -89,6 +89,7 @@ def process_pdf(file_path, category):
                 total_chunks += 1
                 processed_data.append({
                     'file_name': os.path.basename(file_path),
+                    'business_category': category,
                     'document_page': str(page_num),
                     'chunk_no': total_chunks,
                     'chunk_text': chunk,
@@ -96,8 +97,7 @@ def process_pdf(file_path, category):
                     'prompt_tokens': response.usage.prompt_tokens,
                     'total_tokens': response.usage.total_tokens,
                     'created_date_time': current_time,
-                    'chunk_vector': response.data[0].embedding,
-                    'business_category': category
+                    'chunk_vector': response.data[0].embedding
                 })
 
     logger.info(f"Processed {file_path}: {len(pages)} pages, {total_chunks} chunks")

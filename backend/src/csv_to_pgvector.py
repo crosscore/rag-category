@@ -44,6 +44,7 @@ def create_table_and_index(cursor, table_name):
     CREATE TABLE IF NOT EXISTS {} (
         id SERIAL PRIMARY KEY,
         file_name TEXT,
+        business_category TEXT,
         document_page SMALLINT,
         chunk_no INTEGER,
         chunk_text TEXT,
@@ -51,8 +52,7 @@ def create_table_and_index(cursor, table_name):
         prompt_tokens INTEGER,
         total_tokens INTEGER,
         created_date_time TIMESTAMPTZ,
-        chunk_vector vector(3072),
-        business_category TEXT
+        chunk_vector vector(3072)
     );
     """).format(sql.Identifier(sanitized_table_name))
 
@@ -100,7 +100,7 @@ def process_csv_file(file_path, cursor, table_name):
     sanitized_table_name = sanitize_table_name(table_name)
     insert_query = sql.SQL("""
     INSERT INTO {}
-    (file_name, document_page, chunk_no, chunk_text, model, prompt_tokens, total_tokens, created_date_time, chunk_vector, business_category)
+    (file_name, business_category, document_page, chunk_no, chunk_text, model, prompt_tokens, total_tokens, created_date_time, chunk_vector)
     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s::vector(3072), %s);
     """).format(sql.Identifier(sanitized_table_name))
 
@@ -114,9 +114,9 @@ def process_csv_file(file_path, cursor, table_name):
             continue
 
         data.append((
-            row['file_name'], row['document_page'], row['chunk_no'], row['chunk_text'],
+            row['file_name'], row['business_category'], row['document_page'], row['chunk_no'], row['chunk_text'],
             row['model'], row['prompt_tokens'], row['total_tokens'], row['created_date_time'],
-            embedding, row['business_category']
+            embedding
         ))
 
     try:
