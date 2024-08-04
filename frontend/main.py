@@ -8,7 +8,6 @@ import websockets
 import asyncio
 import logging
 import httpx
-import json
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
