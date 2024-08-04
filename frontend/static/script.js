@@ -41,16 +41,13 @@ document.addEventListener("DOMContentLoaded", () => {
 		results.forEach((result, index) => {
 			resultsHTML += `
                 <div class="result">
-                    <h3>${index + 1}. <a href="${
-				result.link
-			}" target="_blank">${result.link_text}</a></h3>
+                    <h3>${index + 1}. <a href="${result.link}" target="_blank">${result.link_text}</a></h3>
                     <p>Category: ${result.category}</p>
                     <p>${result.chunk_text}</p>
                     <p>Distance: ${result.distance.toFixed(4)}</p>
                 </div>
             `;
 		});
-
 		searchResults.innerHTML = resultsHTML;
 	}
 });
