@@ -6,7 +6,6 @@ from psycopg import sql
 from config import *
 import logging
 from contextlib import contextmanager
-import re
 
 logging.basicConfig(filename="/app/data/log/csv_to_pgvector.log", level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -32,14 +31,7 @@ def get_db_connection():
             conn.close()
             logger.info("Database connection closed")
 
-def sanitize_table_name(name):
-    sanitized = re.sub(r'\W+', '_', name)
-    if not sanitized[0].isalpha():
-        sanitized = "t_" + sanitized
-    return sanitized.lower()
-
 def create_table_and_index(cursor, table_name):
-    sanitized_table_name = sanitize_table_name(table_name)
     create_table_query = sql.SQL("""
     CREATE TABLE IF NOT EXISTS {} (
         id SERIAL PRIMARY KEY,
@@ -54,11 +46,11 @@ def create_table_and_index(cursor, table_name):
         created_date_time TIMESTAMPTZ,
         chunk_vector vector(3072)
     );
-    """).format(sql.Identifier(sanitized_table_name))
+    """).format(sql.Identifier(table_name))
 
     try:
         cursor.execute(create_table_query)
-        logger.info(f"Table {sanitized_table_name} created successfully")
+        logger.info(f"Table {table_name} created successfully")
 
         if INDEX_TYPE == "hnsw":
             create_index_query = sql.SQL("""
@@ -66,43 +58,42 @@ def create_table_and_index(cursor, table_name):
             USING hnsw ((chunk_vector::halfvec(3072)) halfvec_ip_ops)
             WITH (m = {}, ef_construction = {});
             """).format(
-                sql.Identifier(f"hnsw_{sanitized_table_name}_chunk_vector_idx"),
-                sql.Identifier(sanitized_table_name),
+                sql.Identifier(f"hnsw_{table_name}_chunk_vector_idx"),
+                sql.Identifier(table_name),
                 sql.Literal(HNSW_M),
                 sql.Literal(HNSW_EF_CONSTRUCTION)
             )
             cursor.execute(create_index_query)
-            logger.info(f"HNSW index created successfully for {sanitized_table_name} with parameters: m = {HNSW_M}, ef_construction = {HNSW_EF_CONSTRUCTION}")
+            logger.info(f"HNSW index created successfully for {table_name} with parameters: m = {HNSW_M}, ef_construction = {HNSW_EF_CONSTRUCTION}")
         elif INDEX_TYPE == "ivfflat":
             create_index_query = sql.SQL("""
             CREATE INDEX IF NOT EXISTS {} ON {}
             USING ivfflat ((chunk_vector::halfvec(3072)) halfvec_ip_ops)
             WITH (lists = {});
             """).format(
-                sql.Identifier(f"ivfflat_{sanitized_table_name}_chunk_vector_idx"),
-                sql.Identifier(sanitized_table_name),
+                sql.Identifier(f"ivfflat_{table_name}_chunk_vector_idx"),
+                sql.Identifier(table_name),
                 sql.Literal(IVFFLAT_LISTS)
             )
             cursor.execute(create_index_query)
-            logger.info(f"IVFFlat index created successfully for {sanitized_table_name} with parameter: lists = {IVFFLAT_LISTS}")
+            logger.info(f"IVFFlat index created successfully for {table_name} with parameter: lists = {IVFFLAT_LISTS}")
         elif INDEX_TYPE == "none":
-            logger.info(f"No index created for {sanitized_table_name} as per configuration")
+            logger.info(f"No index created for {table_name} as per configuration")
         else:
             raise ValueError(f"Unsupported index type: {INDEX_TYPE}")
     except psycopg.Error as e:
-        logger.error(f"Error creating table or index for {sanitized_table_name}: {e}")
+        logger.error(f"Error creating table or index for {table_name}: {e}")
         raise
 
 def process_csv_file(file_path, cursor, table_name):
     logger.info(f"Processing CSV file: {file_path}")
     df = pd.read_csv(file_path)
 
-    sanitized_table_name = sanitize_table_name(table_name)
     insert_query = sql.SQL("""
     INSERT INTO {}
     (file_name, business_category, document_page, chunk_no, chunk_text, model, prompt_tokens, total_tokens, created_date_time, chunk_vector)
     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::vector(3072));
-    """).format(sql.Identifier(sanitized_table_name))
+    """).format(sql.Identifier(table_name))
 
     data = []
     for _, row in df.iterrows():
@@ -121,9 +112,9 @@ def process_csv_file(file_path, cursor, table_name):
 
     try:
         cursor.executemany(insert_query, data)
-        logger.info(f"Inserted {len(data)} rows into the {sanitized_table_name} table")
+        logger.info(f"Inserted {len(data)} rows into the {table_name} table")
     except Exception as e:
-        logger.error(f"Error inserting batch into {sanitized_table_name}: {e}")
+        logger.error(f"Error inserting batch into {table_name}: {e}")
         raise
 
 def process_csv_files():
@@ -134,13 +125,12 @@ def process_csv_files():
                     category_dir = os.path.join(CSV_OUTPUT_DIR, category)
                     if os.path.isdir(category_dir):
                         logger.info(f"Processing category: {category}")
-                        table_name = sanitize_table_name(category)
-                        create_table_and_index(cursor, table_name)
+                        create_table_and_index(cursor, category)
                         for file in os.listdir(category_dir):
                             if file.endswith('.csv'):
                                 csv_file_path = os.path.join(category_dir, file)
                                 try:
-                                    process_csv_file(csv_file_path, cursor, table_name)
+                                    process_csv_file(csv_file_path, cursor, category)
                                     conn.commit()
                                 except Exception as e:
                                     conn.rollback()
