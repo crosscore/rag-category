@@ -8,6 +8,7 @@ import websockets
 import asyncio
 import logging
 import httpx
+import json
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -25,7 +26,15 @@ async def favicon():
 
 @app.get("/")
 async def read_root(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{BACKEND_HTTP_URL}/categories")
+            categories = response.json()["categories"]
+    except Exception as e:
+        logger.error(f"Error fetching categories: {str(e)}")
+        categories = []
+
+    return templates.TemplateResponse("index.html", {"request": request, "categories": categories})
 
 @app.get("/pdf/{path:path}")
 async def stream_pdf(path: str, page: int = None):
