@@ -8,6 +8,7 @@ import os
 from utils.pdf_utils import get_pdf
 from utils.db_utils import get_db_connection, get_search_query, get_available_categories
 from config import *
+import json
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -114,11 +115,12 @@ async def websocket_endpoint(websocket: WebSocket):
                     response = client.chat.completions.create(
                         model="gpt-4o-mini",
                         temperature=1.00,
-                        max_tokens=50,
+                        max_tokens=150,
                         messages=[
                             {"role": "system", "content": "You are a helpful assistant."},
                             {"role": "user", "content": formatted_prompt}
-                        ]
+                        ],
+                        stream=True
                     )
                 else:
                     response = client.chat.completions.create(
@@ -126,13 +128,17 @@ async def websocket_endpoint(websocket: WebSocket):
                         messages=[
                             {"role": "system", "content": "You are a helpful assistant."},
                             {"role": "user", "content": formatted_prompt}
-                        ]
+                        ],
+                        stream=True
                     )
 
-                ai_response = response.choices[0].message.content
-                await websocket.send_json({"ai_response": ai_response})
+                for chunk in response:
+                    if chunk.choices[0].delta.content is not None:
+                        await websocket.send_json({"ai_response_chunk": chunk.choices[0].delta.content})
 
-                logger.info(f"Sent AI response for question: {question[:50]}...")
+                await websocket.send_json({"ai_response_end": True})
+
+                logger.info(f"Sent streaming AI response for question: {question[:50]}...")
 
             except Exception as e:
                 logger.error(f"Error processing query: {str(e)}")
