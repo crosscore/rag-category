@@ -8,7 +8,6 @@ import os
 from utils.pdf_utils import get_pdf
 from utils.db_utils import get_db_connection, get_search_query, get_available_categories
 from config import *
-import json
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -61,7 +60,6 @@ async def websocket_endpoint(websocket: WebSocket):
                 continue
 
             try:
-                # Embedding creation and similarity search
                 if ENABLE_OPENAI:
                     question_vector = client.embeddings.create(
                         input=question,
@@ -95,21 +93,21 @@ async def websocket_endpoint(websocket: WebSocket):
                     chunk_texts.append(chunk_text)
 
                 await websocket.send_json({"results": formatted_results, "chunk_texts": chunk_texts})
-
                 logger.info(f"Sent search results for question: {question[:50]}... in category: {category}")
 
                 # Generate AI response
-                formatted_prompt = f"""
-                以下のユーザーの質問に対して、参考文書を元に回答して下さい。
+                if chunk_texts:
+                    formatted_prompt = f"""
+                    以下のユーザーの質問に対して、参考文書を元に回答して下さい。
+                    参考文書が1つも存在しない場合はそのことをユーザーに伝えて下さい。
 
-                ユーザーの質問：
-                {question}
+                    ユーザーの質問：
+                    {question}
 
-                参考文書：
-                1. {chunk_texts[0]}
-                2. {chunk_texts[1]}
-                3. {chunk_texts[2]}
-                """
+                    参考文書：
+                    """
+                    for i, chunk in enumerate(chunk_texts, 1):
+                        formatted_prompt += f"{i}. {chunk}\n"
 
                 if ENABLE_OPENAI:
                     response = client.chat.completions.create(
@@ -133,11 +131,10 @@ async def websocket_endpoint(websocket: WebSocket):
                     )
 
                 for chunk in response:
-                    if chunk.choices[0].delta.content is not None:
+                    if chunk.choices[0].delta.content:
                         await websocket.send_json({"ai_response_chunk": chunk.choices[0].delta.content})
 
                 await websocket.send_json({"ai_response_end": True})
-
                 logger.info(f"Sent streaming AI response for question: {question[:50]}...")
 
             except Exception as e:

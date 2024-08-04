@@ -13,26 +13,37 @@ document.addEventListener("DOMContentLoaded", () => {
 		console.log("[open] WebSocket connection established");
 	};
 
-	socket.onmessage = function (event) {
+    socket.onmessage = function (event) {
 		try {
 			const data = JSON.parse(event.data);
 			if (data.error) {
 				searchResults.innerHTML = `<p>Error: ${data.error}</p>`;
 				console.error("Error from server:", data.error);
+				aiResponse.innerHTML =
+					"<h2>AI Response:</h2><p>An error occurred while processing your request. Please try again.</p>";
 			} else if (data.results && data.chunk_texts) {
-				displayResults(data.results);
+				if (data.results.length === 0) {
+					searchResults.innerHTML =
+						"<p>No search results found. The AI will attempt to answer based on its general knowledge.</p>";
+				} else {
+					displayResults(data.results);
+				}
 				aiResponse.innerHTML = "<h2>AI Response:</h2><p></p>";
 			} else if (data.ai_response_chunk) {
 				const responseP = aiResponse.querySelector("p");
 				responseP.innerHTML += data.ai_response_chunk;
 			} else if (data.ai_response_end) {
 				console.log("AI response streaming completed");
+				const responseP = aiResponse.querySelector("p");
+				responseP.innerHTML += "<br><em>(Response complete)</em>";
 			} else {
 				console.warn("Unhandled message type:", data);
 			}
 		} catch (error) {
 			console.error("Error parsing WebSocket message:", error);
 			searchResults.innerHTML = `<p>Error: Unable to process server response</p>`;
+			aiResponse.innerHTML =
+				"<h2>AI Response:</h2><p>An error occurred while processing the server response. Please try again.</p>";
 		}
 	};
 
