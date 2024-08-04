@@ -4,6 +4,7 @@ document.addEventListener("DOMContentLoaded", () => {
 	const searchInput = document.getElementById("search-input");
 	const searchButton = document.getElementById("search-button");
 	const searchResults = document.getElementById("search-results");
+	const categorySelect = document.getElementById("category-select");
 
 	let socket = new WebSocket("ws://" + window.location.host + "/ws");
 
@@ -26,8 +27,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
 	searchButton.addEventListener("click", () => {
 		const query = searchInput.value;
+		const category = categorySelect.value;
 		if (query) {
-			socket.send(JSON.stringify({ question: query }));
+			socket.send(
+				JSON.stringify({ question: query, category: category })
+			);
 			searchResults.innerHTML = "<p>Searching...</p>";
 		}
 	});
