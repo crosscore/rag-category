@@ -137,10 +137,6 @@ async def websocket_endpoint(websocket: WebSocket):
         logger.error(f"Unexpected error in WebSocket connection: {str(e)}")
         logger.exception("Full traceback:")
 
-@app.get("/")
-async def root():
-    return {"message": "Hello World"}
-
 if __name__ == "__main__":
     import uvicorn
     logger.info("Starting the application")
