@@ -7,6 +7,8 @@ from config import *
 import logging
 from contextlib import contextmanager
 
+log_dir = "/app/data/log"
+os.makedirs(log_dir, exist_ok=True)
 logging.basicConfig(filename="/app/data/log/csv_to_pgvector.log", level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
 

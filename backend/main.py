@@ -1,7 +1,6 @@
 # rag-category/backend/main.py
 from fastapi import FastAPI, WebSocket, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
 from openai import OpenAI, AzureOpenAI
 from starlette.websockets import WebSocketDisconnect
 import logging
@@ -60,18 +59,19 @@ async def websocket_endpoint(websocket: WebSocket):
                 await websocket.send_json({"error": "Category is required"})
                 continue
 
-            if ENABLE_OPENAI:
-                question_vector = client.embeddings.create(
-                    input=question,
-                    model="text-embedding-3-large"
-                ).data[0].embedding
-            else:
-                question_vector = client.embeddings.create(
-                    input=question,
-                    model=AZURE_OPENAI_EMBEDDINGS_DEPLOYMENT
-                ).data[0].embedding
-
             try:
+                # Embedding creation and similarity search
+                if ENABLE_OPENAI:
+                    question_vector = client.embeddings.create(
+                        input=question,
+                        model="text-embedding-3-large"
+                    ).data[0].embedding
+                else:
+                    question_vector = client.embeddings.create(
+                        input=question,
+                        model=AZURE_OPENAI_EMBEDDINGS_DEPLOYMENT
+                    ).data[0].embedding
+
                 with get_db_connection() as (conn, cursor):
                     cursor.execute(get_search_query(INDEX_TYPE, category), (question_vector, top_n))
                     results = cursor.fetchall()
@@ -93,10 +93,13 @@ async def websocket_endpoint(websocket: WebSocket):
                     formatted_results.append(result)
                     chunk_texts.append(chunk_text)
 
-                await websocket.send_json({"results": formatted_results})
+                await websocket.send_json({"results": formatted_results, "chunk_texts": chunk_texts})
 
-                prompt = f"""
-                以下のユーザーの質問に対して、参考文書を元に50トークン以内で回答して下さい。
+                logger.info(f"Sent search results for question: {question[:50]}... in category: {category}")
+
+                # Generate AI response
+                formatted_prompt = f"""
+                以下のユーザーの質問に対して、参考文書を元に回答して下さい。
 
                 ユーザーの質問：
                 {question}
@@ -114,29 +117,27 @@ async def websocket_endpoint(websocket: WebSocket):
                         max_tokens=50,
                         messages=[
                             {"role": "system", "content": "You are a helpful assistant."},
-                            {"role": "user", "content": prompt}
-                        ],
-                        stream=True
+                            {"role": "user", "content": formatted_prompt}
+                        ]
                     )
                 else:
                     response = client.chat.completions.create(
                         model=AZURE_OPENAI_DEPLOYMENT,
                         messages=[
                             {"role": "system", "content": "You are a helpful assistant."},
-                            {"role": "user", "content": prompt}
-                        ],
-                        stream=True
+                            {"role": "user", "content": formatted_prompt}
+                        ]
                     )
 
-                for chunk in response:
-                    if chunk.choices[0].delta.content is not None:
-                        await websocket.send_json({"streaming_response": chunk.choices[0].delta.content})
+                ai_response = response.choices[0].message.content
+                await websocket.send_json({"ai_response": ai_response})
 
-                logger.info(f"Sent response for question: {question[:50]}... in category: {category}")
+                logger.info(f"Sent AI response for question: {question[:50]}...")
+
             except Exception as e:
                 logger.error(f"Error processing query: {str(e)}")
                 logger.exception("Full traceback:")
-                await websocket.send_json({"error": str(e)})
+                await websocket.send_json({"error": f"Error processing query: {str(e)}"})
 
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected")
