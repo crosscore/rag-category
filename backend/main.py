@@ -24,9 +24,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-logger.info(f"Application initialized with INDEX_TYPE: {INDEX_TYPE}, "
-            f"IVFFLAT_PROBES: {IVFFLAT_PROBES}, HNSW_EF_SEARCH: {HNSW_EF_SEARCH}")
-
 if ENABLE_OPENAI:
     client = OpenAI(api_key=OPENAI_API_KEY)
 else:
