@@ -48,9 +48,9 @@ async def get_categories():
         logger.error(f"Error fetching categories: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-@app.get("/pdf/{path:path}")
-async def get_pdf(path: str, page: int = None):
-    file_path = os.path.join("/app/data/pdf", path)
+@app.get("/pdf/{category}/{path:path}")
+async def get_pdf(category: str, path: str, page: int = None):
+    file_path = os.path.join("/app/data/pdf", category, path)
     logger.info(f"Attempting to access PDF file: {file_path}")
     if not os.path.exists(file_path):
         logger.error(f"PDF file not found: {file_path}")
@@ -119,8 +119,8 @@ async def websocket_endpoint(websocket: WebSocket):
                         "chunk_text": str(chunk_text),
                         "distance": float(distance),
                         "category": category,
-                        "link_text": f"/{os.path.relpath(file_name, '/app/data/pdf')}, p.{document_page}",
-                        "link": f"pdf/{os.path.relpath(file_name, '/app/data/pdf')}?page={document_page}",
+                        "link_text": f"/{category}/{os.path.basename(file_name)}, p.{document_page}",
+                        "link": f"pdf/{category}/{os.path.basename(file_name)}?page={document_page}",
                     }
                     formatted_results.append(result)
 

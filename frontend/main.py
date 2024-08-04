@@ -35,10 +35,9 @@ async def read_root(request: Request):
 
     return templates.TemplateResponse("index.html", {"request": request, "categories": categories})
 
-@app.get("/pdf/{path:path}")
-async def stream_pdf(path: str, page: int = None):
-    clean_path = path.lstrip('/').replace('app/data/pdf/', '', 1)
-    url = f"{BACKEND_HTTP_URL}/pdf/{clean_path}"
+@app.get("/pdf/{category}/{path:path}")
+async def stream_pdf(category: str, path: str, page: int = None):
+    url = f"{BACKEND_HTTP_URL}/pdf/{category}/{path}"
     if page is not None:
         url += f"?page={page}"
     logger.info(f"Proxying PDF from backend: {url}")
@@ -59,7 +58,7 @@ async def stream_pdf(path: str, page: int = None):
         return StreamingResponse(
             stream_response(),
             media_type="application/pdf",
-            headers={"Content-Disposition": f'inline; filename="{os.path.basename(clean_path)}"'}
+            headers={"Content-Disposition": f'inline; filename="{os.path.basename(path)}"'}
         )
     except httpx.HTTPStatusError as e:
         logger.error(f"HTTP error occurred while fetching PDF: {str(e)}")
