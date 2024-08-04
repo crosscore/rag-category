@@ -96,7 +96,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 await websocket.send_json({"results": formatted_results})
 
                 prompt = f"""
-                以下の参考文書を元に、ユーザーの質問に適切に回答して下さい。
+                以下のユーザーの質問に対して、参考文書を元に50トークン以内で回答して下さい。
 
                 ユーザーの質問：
                 {question}
@@ -109,7 +109,9 @@ async def websocket_endpoint(websocket: WebSocket):
 
                 if ENABLE_OPENAI:
                     response = client.chat.completions.create(
-                        model="gpt-3.5-turbo",
+                        model="gpt-4o-mini",
+                        temperature=1.00,
+                        max_tokens=50,
                         messages=[
                             {"role": "system", "content": "You are a helpful assistant."},
                             {"role": "user", "content": prompt}
@@ -126,7 +128,6 @@ async def websocket_endpoint(websocket: WebSocket):
                         stream=True
                     )
 
-                # ストリーミングレスポンスをフロントエンドに送信
                 for chunk in response:
                     if chunk.choices[0].delta.content is not None:
                         await websocket.send_json({"streaming_response": chunk.choices[0].delta.content})
