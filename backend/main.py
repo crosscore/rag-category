@@ -1,13 +1,12 @@
 # rag-category/backend/main.py
 from fastapi import FastAPI, WebSocket, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.responses import StreamingResponse
 from openai import OpenAI, AzureOpenAI
 from starlette.websockets import WebSocketDisconnect
 import logging
 import os
-from io import BytesIO
-from pypdf import PdfReader, PdfWriter
+from utils.pdf_utils import get_pdf
 from utils.db_utils import get_db_connection, get_search_query, get_available_categories
 from config import *
 
@@ -43,34 +42,8 @@ async def get_categories():
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.get("/pdf/{category}/{path:path}")
-async def get_pdf(category: str, path: str, page: int = None):
-    file_path = os.path.join("/app/data/pdf", category, path)
-    logger.info(f"Attempting to access PDF file: {file_path}")
-    if not os.path.exists(file_path):
-        logger.error(f"PDF file not found: {file_path}")
-        raise HTTPException(status_code=404, detail=f"PDF file not found: {file_path}")
-
-    try:
-        if page is not None and page > 0:
-            logger.info(f"Extracting page {page} from PDF file: {file_path}")
-            pdf_reader = PdfReader(file_path)
-            pdf_writer = PdfWriter()
-
-            if page <= len(pdf_reader.pages):
-                pdf_writer.add_page(pdf_reader.pages[page - 1])
-                pdf_bytes = BytesIO()
-                pdf_writer.write(pdf_bytes)
-                pdf_bytes.seek(0)
-                return StreamingResponse(pdf_bytes, media_type="application/pdf", headers={"Content-Disposition": f'inline; filename="{os.path.basename(file_path)}_page_{page}.pdf"'})
-            else:
-                logger.error(f"Invalid page number: {page}")
-                raise HTTPException(status_code=400, detail=f"Invalid page number: {page}")
-        else:
-            logger.info(f"Serving full PDF file: {file_path}")
-            return FileResponse(file_path, media_type="application/pdf", filename=os.path.basename(file_path))
-    except Exception as e:
-        logger.error(f"Error serving PDF file: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error serving PDF file: {str(e)}")
+async def serve_pdf(category: str, path: str, page: int = None):
+    return get_pdf(category, path, page)
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -81,7 +54,7 @@ async def websocket_endpoint(websocket: WebSocket):
             data = await websocket.receive_json()
             question = data["question"]
             category = data.get("category")
-            top_n = int(data.get("top_n", 30))
+            top_n = int(data.get("top_n", 3))
 
             if not category:
                 await websocket.send_json({"error": "Category is required"})
@@ -105,6 +78,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     conn.commit()
 
                 formatted_results = []
+                chunk_texts = []
                 for file_name, document_page, chunk_no, chunk_text, distance in results:
                     result = {
                         "file_name": str(file_name),
@@ -117,11 +91,46 @@ async def websocket_endpoint(websocket: WebSocket):
                         "link": f"pdf/{category}/{os.path.basename(file_name)}?page={document_page}",
                     }
                     formatted_results.append(result)
+                    chunk_texts.append(chunk_text)
 
-                response_data = {
-                    "results": formatted_results
-                }
-                await websocket.send_json(response_data)
+                await websocket.send_json({"results": formatted_results})
+
+                prompt = f"""
+                以下の参考文書を元に、ユーザーの質問に適切に回答して下さい。
+
+                ユーザーの質問：
+                {question}
+
+                参考文書：
+                1. {chunk_texts[0]}
+                2. {chunk_texts[1]}
+                3. {chunk_texts[2]}
+                """
+
+                if ENABLE_OPENAI:
+                    response = client.chat.completions.create(
+                        model="gpt-3.5-turbo",
+                        messages=[
+                            {"role": "system", "content": "You are a helpful assistant."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        stream=True
+                    )
+                else:
+                    response = client.chat.completions.create(
+                        model=AZURE_OPENAI_DEPLOYMENT,
+                        messages=[
+                            {"role": "system", "content": "You are a helpful assistant."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        stream=True
+                    )
+
+                # ストリーミングレスポンスをフロントエンドに送信
+                for chunk in response:
+                    if chunk.choices[0].delta.content is not None:
+                        await websocket.send_json({"streaming_response": chunk.choices[0].delta.content})
+
                 logger.info(f"Sent response for question: {question[:50]}... in category: {category}")
             except Exception as e:
                 logger.error(f"Error processing query: {str(e)}")

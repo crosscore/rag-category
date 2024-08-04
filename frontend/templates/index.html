@@ -10,22 +10,18 @@
 <body>
     <div class="container">
         <h1>Similar Chunk Search</h1>
-
         <div class="search-container">
             <select id="category-select">
                 {% for category in categories %}
-                    <option value="{{ category }}">{{ category }}</option>
+                <option value="{{ category }}">{{ category }}</option>
                 {% endfor %}
             </select>
-            <input id="search-input" type="text" placeholder="Enter your search query">
+            <input type="text" id="search-input" placeholder="Enter your search query">
             <button id="search-button">Search</button>
         </div>
-
-        <div id="search-results">
-            <!-- Search results will be displayed here -->
-        </div>
+        <div id="search-results"></div>
+        <div id="ai-response"></div>
     </div>
-
     <script src="/static/script.js"></script>
 </body>
 </html>

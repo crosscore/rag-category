@@ -5,6 +5,7 @@ document.addEventListener("DOMContentLoaded", () => {
 	const searchButton = document.getElementById("search-button");
 	const searchResults = document.getElementById("search-results");
 	const categorySelect = document.getElementById("category-select");
+	const aiResponse = document.getElementById("ai-response");
 
 	let socket = new WebSocket("ws://" + window.location.host + "/ws");
 
@@ -16,8 +17,10 @@ document.addEventListener("DOMContentLoaded", () => {
 		const data = JSON.parse(event.data);
 		if (data.error) {
 			searchResults.innerHTML = `<p>Error: ${data.error}</p>`;
-		} else {
+		} else if (data.results) {
 			displayResults(data.results);
+		} else if (data.streaming_response) {
+			aiResponse.innerHTML += data.streaming_response;
 		}
 	};
 
@@ -33,6 +36,7 @@ document.addEventListener("DOMContentLoaded", () => {
 				JSON.stringify({ question: query, category: category })
 			);
 			searchResults.innerHTML = "<p>Searching...</p>";
+			aiResponse.innerHTML = "<h2>AI Response:</h2>";
 		}
 	});
 
@@ -41,7 +45,9 @@ document.addEventListener("DOMContentLoaded", () => {
 		results.forEach((result, index) => {
 			resultsHTML += `
                 <div class="result">
-                    <h3>${index + 1}. <a href="${result.link}" target="_blank">${result.link_text}</a></h3>
+                    <h3>${index + 1}. <a href="${
+				result.link
+			}" target="_blank">${result.link_text}</a></h3>
                     <p>Category: ${result.category}</p>
                     <p>${result.chunk_text}</p>
                     <p>Distance: ${result.distance.toFixed(4)}</p>
