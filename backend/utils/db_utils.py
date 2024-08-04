@@ -4,7 +4,6 @@ from psycopg import sql
 from contextlib import contextmanager
 import logging
 from config import *
-import re
 
 logger = logging.getLogger(__name__)
 
@@ -53,11 +52,7 @@ def get_available_categories():
         logger.error(f"Error fetching available categories: {e}")
         raise
 
-def sanitize_table_name(name):
-    return re.sub(r'\W+', '_', name).lower()
-
 def get_search_query(index_type, category):
-    sanitized_category = sanitize_table_name(category)
     vector_type = "halfvec(3072)" if index_type in ["hnsw", "ivfflat"] else "vector(3072)"
     query = sql.SQL("""
     SELECT file_name, document_page, chunk_no, chunk_text,
@@ -67,12 +62,11 @@ def get_search_query(index_type, category):
     LIMIT %s;
     """).format(
         vector_type=sql.SQL(vector_type),
-        table=sql.Identifier(sanitized_category)
+        table=sql.Identifier(category)
     )
     return query
 
 def execute_search_query(conn, cursor, question_vector, top_n, category):
-    sanitized_category = sanitize_table_name(category)
-    query = get_search_query(INDEX_TYPE, sanitized_category)
+    query = get_search_query(INDEX_TYPE, category)
     cursor.execute(query, (question_vector, top_n))
     return cursor.fetchall()
