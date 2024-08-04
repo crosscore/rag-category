@@ -1,8 +1,10 @@
 # rag-category/backend/utils/db_utils.py
 import psycopg
+from psycopg import sql
 from contextlib import contextmanager
 import logging
 from config import *
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -37,16 +39,40 @@ def get_db_connection():
         if conn:
             conn.close()
 
-def get_search_query(index_type):
+def get_available_categories():
+    try:
+        with get_db_connection() as (conn, cursor):
+            cursor.execute("""
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_schema = 'public' AND table_name != 'document_vectors'
+            """)
+            categories = [row[0] for row in cursor.fetchall()]
+        return categories
+    except psycopg.Error as e:
+        logger.error(f"Error fetching available categories: {e}")
+        raise
+
+def sanitize_table_name(name):
+    return re.sub(r'\W+', '_', name).lower()
+
+def get_search_query(index_type, category):
+    sanitized_category = sanitize_table_name(category)
     vector_type = "halfvec(3072)" if index_type in ["hnsw", "ivfflat"] else "vector(3072)"
-    return f"""
+    query = sql.SQL("""
     SELECT file_name, document_page, chunk_no, chunk_text,
             (chunk_vector::{vector_type} <#> %s::{vector_type}) AS distance
-    FROM document_vectors
+    FROM {table}
     ORDER BY distance ASC
     LIMIT %s;
-    """
+    """).format(
+        vector_type=sql.SQL(vector_type),
+        table=sql.Identifier(sanitized_category)
+    )
+    return query
 
-def execute_search_query(conn, cursor, question_vector, top_n):
-    cursor.execute(get_search_query(INDEX_TYPE), (question_vector, top_n))
+def execute_search_query(conn, cursor, question_vector, top_n, category):
+    sanitized_category = sanitize_table_name(category)
+    query = get_search_query(INDEX_TYPE, sanitized_category)
+    cursor.execute(query, (question_vector, top_n))
     return cursor.fetchall()

@@ -9,7 +9,7 @@ import logging
 import os
 from io import BytesIO
 from pypdf import PdfReader, PdfWriter
-from utils.db_utils import get_db_connection, get_search_query
+from utils.db_utils import get_db_connection, get_search_query, get_available_categories
 from config import *
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
@@ -38,6 +38,15 @@ else:
         api_key=AZURE_OPENAI_API_KEY,
         api_version=AZURE_OPENAI_API_VERSION
     )
+
+@app.get("/categories")
+async def get_categories():
+    try:
+        categories = get_available_categories()
+        return {"categories": categories}
+    except Exception as e:
+        logger.error(f"Error fetching categories: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.get("/pdf/{path:path}")
 async def get_pdf(path: str, page: int = None):
@@ -77,16 +86,27 @@ async def websocket_endpoint(websocket: WebSocket):
         while True:
             data = await websocket.receive_json()
             question = data["question"]
+            category = data.get("category")
             top_n = int(data.get("top_n", 30))
 
-            question_vector = client.embeddings.create(
-                input=question,
-                model=AZURE_OPENAI_EMBEDDINGS_DEPLOYMENT
-            ).data[0].embedding
+            if not category:
+                await websocket.send_json({"error": "Category is required"})
+                continue
+
+            if ENABLE_OPENAI:
+                question_vector = client.embeddings.create(
+                    input=question,
+                    model="text-embedding-3-large"
+                ).data[0].embedding
+            else:
+                question_vector = client.embeddings.create(
+                    input=question,
+                    model=AZURE_OPENAI_EMBEDDINGS_DEPLOYMENT
+                ).data[0].embedding
 
             try:
                 with get_db_connection() as (conn, cursor):
-                    cursor.execute(get_search_query(INDEX_TYPE), (question_vector, top_n))
+                    cursor.execute(get_search_query(INDEX_TYPE, category), (question_vector, top_n))
                     results = cursor.fetchall()
                     conn.commit()
 
@@ -98,7 +118,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         "chunk_no": int(chunk_no),
                         "chunk_text": str(chunk_text),
                         "distance": float(distance),
-                        "category": os.path.basename(os.path.dirname(file_name)),
+                        "category": category,
                         "link_text": f"/{os.path.relpath(file_name, '/app/data/pdf')}, p.{document_page}",
                         "link": f"pdf/{os.path.relpath(file_name, '/app/data/pdf')}?page={document_page}",
                     }
@@ -108,7 +128,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     "results": formatted_results
                 }
                 await websocket.send_json(response_data)
-                logger.info(f"Sent response for question: {question[:50]}...")
+                logger.info(f"Sent response for question: {question[:50]}... in category: {category}")
             except Exception as e:
                 logger.error(f"Error processing query: {str(e)}")
                 logger.exception("Full traceback:")
